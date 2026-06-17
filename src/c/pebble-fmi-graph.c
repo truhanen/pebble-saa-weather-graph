@@ -35,7 +35,13 @@ static int        s_local_start_day  = 1;  /* day of month */
 static int        s_local_start_mon  = 1;  /* month 1-12 */
 static char       s_location[33]     = "";
 static int        s_zoom_days        = 1;  /* 1 or 5 */
+static int        s_view_count       = 24; /* animated: current view width in hours */
+static Animation *s_zoom_anim        = NULL;
 static int        s_scroll_offset    = 0;  /* hours scrolled forward */
+static int        s_scroll_target    = 0;
+static int        s_scroll_anim_start = 0;
+static bool       s_animating        = false;  /* unused, kept for future use */
+static Animation *s_scroll_anim      = NULL;
 
 static GPath     *s_wind_arrow       = NULL;
 
@@ -184,6 +190,7 @@ static void prv_inbox_received(DictionaryIterator *iter, void *ctx) {
     if (loc_t) snprintf(s_location, sizeof(s_location), "%s", loc_t->value->cstring);
     int block_start = (s_current_idx / 3) * 3;
     s_scroll_offset = (block_start > 6) ? block_start - 6 : 0;
+    s_scroll_target = s_scroll_offset;
     prv_compute_daily_stats();
   }
 
@@ -223,7 +230,7 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
   if (s_status != STATUS_READY || s_temp_count < 2) return;
 
   /* ---- zoom window ---- */
-  const int view_count = (s_zoom_days == 1) ? 24 : (s_zoom_days * 24);
+  const int view_count = s_view_count;
   const int view_start = s_scroll_offset;
   const int n = (view_start + view_count <= s_temp_count)
                 ? view_count : (s_temp_count - view_start);
@@ -301,6 +308,7 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
     static const int target_hours[] = {0, 3, 6, 9, 12, 15, 18, 21};
     for (int j = 0; j < 8; j++) {
       int th  = target_hours[j];
+      if (th != 0 && s_zoom_anim) continue;  /* hide 3h grid lines during zoom animation */
       int idx = (th - view_start_h + 24) % 24;
       if (idx >= n) continue;
       int tx = X(idx);
@@ -732,16 +740,101 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
   }
 }
 
+/* ---------- scroll animation ---------- */
+
+static void prv_scroll_anim_update(Animation *anim, const AnimationProgress progress) {
+  (void)anim;
+  s_scroll_offset = s_scroll_anim_start +
+    (int)((s_scroll_target - s_scroll_anim_start) * (int32_t)progress / ANIMATION_NORMALIZED_MAX);
+  layer_mark_dirty(s_graph_layer);
+}
+
+static void prv_scroll_anim_stopped(Animation *anim, bool finished, void *ctx) {
+  (void)anim; (void)ctx;
+  s_scroll_offset = s_scroll_target;
+  s_animating = false;
+  s_scroll_anim = NULL;
+  layer_mark_dirty(s_graph_layer);  /* final redraw with text */
+}
+
+static void prv_start_scroll_anim(int target) {
+  if (s_scroll_anim) {
+    animation_unschedule(s_scroll_anim);
+    animation_destroy(s_scroll_anim);
+    s_scroll_anim = NULL;
+  }
+  s_scroll_anim_start = s_scroll_offset;
+  s_scroll_target = target;
+  s_animating = true;
+
+  static const AnimationImplementation impl = {
+    .update = prv_scroll_anim_update
+  };
+  s_scroll_anim = animation_create();
+  animation_set_duration(s_scroll_anim, 75);
+  animation_set_curve(s_scroll_anim, AnimationCurveEaseOut);
+  animation_set_implementation(s_scroll_anim, &impl);
+  static AnimationHandlers handlers = {
+    .stopped = prv_scroll_anim_stopped
+  };
+  animation_set_handlers(s_scroll_anim, handlers, NULL);
+  animation_schedule(s_scroll_anim);
+}
+
+static int s_zoom_vc_start  = 24;
+static int s_zoom_vc_target = 24;
+
+static void prv_zoom_anim_update(Animation *anim, const AnimationProgress progress) {
+  (void)anim;
+  s_view_count = s_zoom_vc_start +
+    (int)((s_zoom_vc_target - s_zoom_vc_start) * (int32_t)progress / ANIMATION_NORMALIZED_MAX);
+  if (s_view_count < 1) s_view_count = 1;
+  layer_mark_dirty(s_graph_layer);
+}
+
+static void prv_zoom_anim_stopped(Animation *anim, bool finished, void *ctx) {
+  (void)anim; (void)ctx;
+  s_view_count = s_zoom_vc_target;
+  s_animating = false;
+  s_zoom_anim = NULL;
+  layer_mark_dirty(s_graph_layer);
+}
+
+static void prv_start_zoom_anim(int vc_target) {
+  if (s_zoom_anim) {
+    animation_unschedule(s_zoom_anim);
+    animation_destroy(s_zoom_anim);
+    s_zoom_anim = NULL;
+  }
+  s_zoom_vc_start  = s_view_count;
+  s_zoom_vc_target = vc_target;
+  s_animating = true;
+
+  static const AnimationImplementation impl = {
+    .update = prv_zoom_anim_update
+  };
+  s_zoom_anim = animation_create();
+  animation_set_duration(s_zoom_anim, 66);
+  animation_set_curve(s_zoom_anim, AnimationCurveEaseInOut);
+  animation_set_implementation(s_zoom_anim, &impl);
+  static AnimationHandlers handlers = {
+    .stopped = prv_zoom_anim_stopped
+  };
+  animation_set_handlers(s_zoom_anim, handlers, NULL);
+  animation_schedule(s_zoom_anim);
+}
+
 /* ---------- click handlers ---------- */
 
 static void prv_select_click(ClickRecognizerRef r, void *ctx) {
   s_zoom_days = (s_zoom_days == 1) ? 5 : 1;
-  /* Clamp scroll to new view size */
-  int view_count = (s_zoom_days == 1) ? 24 : (s_zoom_days * 24);
-  int max_scroll = s_temp_count - view_count;
+  int vc_target = s_zoom_days * 24;
+  /* Clamp scroll to new range */
+  int max_scroll = s_temp_count - vc_target;
   if (max_scroll < 0) max_scroll = 0;
   if (s_scroll_offset > max_scroll) s_scroll_offset = max_scroll;
-  layer_mark_dirty(s_graph_layer);
+  s_scroll_target = s_scroll_offset;
+  prv_start_zoom_anim(vc_target);
 }
 
 static void prv_down_click(ClickRecognizerRef r, void *ctx) {
@@ -749,16 +842,16 @@ static void prv_down_click(ClickRecognizerRef r, void *ctx) {
   int view_count = (s_zoom_days == 1) ? 24 : (s_zoom_days * 24);
   int max_scroll = s_temp_count - view_count;
   if (max_scroll < 0) max_scroll = 0;
-  s_scroll_offset += step;
-  if (s_scroll_offset > max_scroll) s_scroll_offset = max_scroll;
-  layer_mark_dirty(s_graph_layer);
+  int target = s_scroll_target + step;
+  if (target > max_scroll) target = max_scroll;
+  prv_start_scroll_anim(target);
 }
 
 static void prv_up_click(ClickRecognizerRef r, void *ctx) {
   int step = (s_zoom_days == 1) ? 6 : 24;
-  s_scroll_offset -= step;
-  if (s_scroll_offset < 0) s_scroll_offset = 0;
-  layer_mark_dirty(s_graph_layer);
+  int target = s_scroll_target - step;
+  if (target < 0) target = 0;
+  prv_start_scroll_anim(target);
 }
 
 static void prv_click_config(void *ctx) {
@@ -794,6 +887,16 @@ static void prv_window_load(Window *window) {
 }
 
 static void prv_window_unload(Window *window) {
+  if (s_zoom_anim) {
+    animation_unschedule(s_zoom_anim);
+    animation_destroy(s_zoom_anim);
+    s_zoom_anim = NULL;
+  }
+  if (s_scroll_anim) {
+    animation_unschedule(s_scroll_anim);
+    animation_destroy(s_scroll_anim);
+    s_scroll_anim = NULL;
+  }
   gpath_destroy(s_wind_arrow);
   s_wind_arrow = NULL;
   layer_destroy(s_graph_layer);
