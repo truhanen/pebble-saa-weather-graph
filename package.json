@@ -11,7 +11,7 @@
   "private": true,
   "dependencies": {},
   "pebble": {
-    "displayName": "FMI forecast",
+    "displayName": "FMI weather",
     "uuid": "f315c701-6b02-4cd9-9317-f01924d73106",
     "sdkVersion": "3",
     "enableMultiJS": true,
