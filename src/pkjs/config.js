@@ -156,14 +156,14 @@ module.exports = [
   },
   {
     "type": "toggle",
-    "messageKey": "SHOW_DAWN_DUSK_Z1",
-    "label": "Dawn & dusk ticks (1 day)",
+    "messageKey": "SHOW_SUNRISE_SUNSET_Z1",
+    "label": "Sunrise & sunset ticks (1 day)",
     "defaultValue": true
   },
   {
     "type": "toggle",
-    "messageKey": "SHOW_DAWN_DUSK_Z5",
-    "label": "Dawn & dusk ticks (5 days)",
+    "messageKey": "SHOW_SUNRISE_SUNSET_Z5",
+    "label": "Sunrise & sunset ticks (5 days)",
     "defaultValue": true
   },
   {
