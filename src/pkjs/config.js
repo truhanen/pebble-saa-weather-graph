@@ -98,13 +98,13 @@ module.exports = [
     "type": "toggle",
     "messageKey": "SHOW_HUMIDITY_Z1",
     "label": "Relative humidity (1 day)",
-    "defaultValue": true
+    "defaultValue": false
   },
   {
     "type": "toggle",
     "messageKey": "SHOW_HUMIDITY_Z5",
     "label": "Relative humidity (5 days)",
-    "defaultValue": true
+    "defaultValue": false
   },
   {
     "type": "toggle",
@@ -122,49 +122,49 @@ module.exports = [
     "type": "toggle",
     "messageKey": "SHOW_UV_Z1",
     "label": "UV index (1 day)",
-    "defaultValue": true
+    "defaultValue": false
   },
   {
     "type": "toggle",
     "messageKey": "SHOW_UV_Z5",
     "label": "UV index (5 days)",
-    "defaultValue": true
+    "defaultValue": false
   },
   {
     "type": "toggle",
     "messageKey": "SHOW_GOLDEN_HOUR_Z1",
     "label": "Golden hour (1 day)",
-    "defaultValue": true
+    "defaultValue": false
   },
   {
     "type": "toggle",
     "messageKey": "SHOW_GOLDEN_HOUR_Z5",
     "label": "Golden hour (5 days)",
-    "defaultValue": true
+    "defaultValue": false
   },
   {
     "type": "toggle",
     "messageKey": "SHOW_DARKNESS_Z1",
     "label": "Darkness (1 day)",
-    "defaultValue": true
+    "defaultValue": false
   },
   {
     "type": "toggle",
     "messageKey": "SHOW_DARKNESS_Z5",
     "label": "Darkness (5 days)",
-    "defaultValue": true
+    "defaultValue": false
   },
   {
     "type": "toggle",
     "messageKey": "SHOW_SUNRISE_SUNSET_Z1",
     "label": "Sunrise & sunset ticks (1 day)",
-    "defaultValue": true
+    "defaultValue": false
   },
   {
     "type": "toggle",
     "messageKey": "SHOW_SUNRISE_SUNSET_Z5",
     "label": "Sunrise & sunset ticks (5 days)",
-    "defaultValue": true
+    "defaultValue": false
   },
   {
     "type": "heading",

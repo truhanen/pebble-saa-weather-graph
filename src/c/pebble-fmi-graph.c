@@ -44,13 +44,13 @@ static AppSettings s_settings = {
   .temp_unit = 0, .wind_unit = 0, .precip_unit = 0,
   .show_cloud_z1 = 1, .show_cloud_z5 = 1,
   .show_precip_z1 = 1, .show_precip_z5 = 1,
-  .show_humidity_z1 = 1, .show_humidity_z5 = 1,
+  .show_humidity_z1 = 0, .show_humidity_z5 = 0,
   .show_wind_z1 = 1, .show_wind_z5 = 1,
-  .show_uv_z1 = 1, .show_uv_z5 = 1,
+  .show_uv_z1 = 0, .show_uv_z5 = 0,
   .show_weather_ind_z1 = 1, .show_weather_ind_z5 = 1,
-  .show_sunrise_sunset_z1 = 1, .show_sunrise_sunset_z5 = 1,
-  .show_golden_hour_z1 = 1, .show_golden_hour_z5 = 1,
-  .show_darkness_z1 = 1, .show_darkness_z5 = 1,
+  .show_sunrise_sunset_z1 = 0, .show_sunrise_sunset_z5 = 0,
+  .show_golden_hour_z1 = 0, .show_golden_hour_z5 = 0,
+  .show_darkness_z1 = 0, .show_darkness_z5 = 0,
   .time_format = 0, .date_format = 0,
 };
 
