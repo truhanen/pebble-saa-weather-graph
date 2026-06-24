@@ -1100,7 +1100,7 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
         /* Stub when show_golden_hour off: short bar around tick position */
         int tx = bx + bw * tick_min / 60;
         graphics_context_set_stroke_color(ctx, GColorOrange);
-        graphics_draw_line(ctx, GPoint(tx - 4, bar_y), GPoint(tx + 4, bar_y));
+        graphics_draw_line(ctx, GPoint(tx - 5, bar_y), GPoint(tx + 4, bar_y));
       }
 
       /* draw tick */
