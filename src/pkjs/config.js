@@ -40,8 +40,8 @@ module.exports = [
     "defaultValue": 0,
     "label": "Date",
     "options": [
-      { "label": "DD.MM.", "value": 0 },
-      { "label": "MM/DD", "value": 1 }
+      { "label": "dd.mm.", "value": 0 },
+      { "label": "mm/dd", "value": 1 }
     ]
   },
   {
@@ -51,7 +51,7 @@ module.exports = [
     "label": "Time",
     "options": [
       { "label": "24h", "value": 0 },
-      { "label": "12h (AM/PM)", "value": 1 }
+      { "label": "12h (am/pm)", "value": 1 }
     ]
   },
   {
