@@ -206,6 +206,17 @@ module.exports = [
     "attributes": { "placeholder": "", "maxlength": 32 }
   },
   {
+    "type": "heading",
+    "defaultValue": "Data caching"
+  },
+  {
+    "type": "input",
+    "messageKey": "CACHE_MAX_AGE_HOURS",
+    "defaultValue": "24",
+    "label": "Cache max age (hours)",
+    "attributes": { "placeholder": "24" }
+  },
+  {
     "type": "submit",
     "defaultValue": "Save"
   }

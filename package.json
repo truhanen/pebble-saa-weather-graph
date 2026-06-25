@@ -73,7 +73,8 @@
       "PRESET_NAME_3",
       "PRESET_NAME_4",
       "PRESET_NAME_5",
-      "SELECTED_PRESET"
+      "SELECTED_PRESET",
+      "CACHE_MAX_AGE_HOURS"
     ],
     "resources": {
       "media": [

@@ -28,6 +28,25 @@ var clay = new Clay(clayConfig, function() {
       addGeoAutocomplete(item.$manipulatorTarget[0]);
     }
 
+    /* Inline layout for cache max age input */
+    var cacheItem = clayConfig.getItemByMessageKey('CACHE_MAX_AGE_HOURS');
+    if (cacheItem) {
+      var cacheLbl = cacheItem.$element[0].querySelector('label.tap-highlight');
+      if (cacheLbl) {
+        cacheLbl.style.cssText = 'display:flex;align-items:center;padding:8px 16px;';
+        var cacheLabelSpan = cacheLbl.querySelector('.label');
+        if (cacheLabelSpan) {
+          cacheLabelSpan.style.cssText = 'flex-shrink:0;padding:0;margin-right:10px;white-space:nowrap;';
+        }
+        var cacheInputSpan = cacheLbl.querySelector('.input');
+        if (cacheInputSpan) {
+          cacheInputSpan.style.cssText = 'flex:1;min-width:0;margin:0;';
+          var cacheInput = cacheInputSpan.querySelector('input');
+          if (cacheInput) cacheInput.style.textAlign = 'right';
+        }
+      }
+    }
+
     /* Side-by-side 1d/5d toggles for each data selection item */
     var pairs = [
       ['SHOW_CLOUD_Z1',        'SHOW_CLOUD_Z5',        'Cloud cover'],
@@ -173,6 +192,45 @@ var FMI_WFS_BASE = 'https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0' +
 
 var pendingFetch = false;
 
+/* ---------- phone-side forecast cache ---------- */
+
+function getCacheMaxAgeMs() {
+  try {
+    var settings = JSON.parse(localStorage.getItem('clay-settings')) || {};
+    var h = parseFloat(settings.CACHE_MAX_AGE_HOURS);
+    if (!isNaN(h) && h >= 0) return h * 3600000;
+  } catch(e) {}
+  return 24 * 3600000;  /* default 24 h */
+}
+
+function getCacheKey(presetIndex) {
+  return 'forecast_cache_' + (presetIndex || 0);
+}
+
+function saveToCache(presetIndex, msg) {
+  try {
+    var entry = JSON.stringify({ timestamp: Date.now(), msg: msg });
+    localStorage.setItem(getCacheKey(presetIndex), entry);
+  } catch(e) {
+    console.log('Cache save error: ' + e);
+  }
+}
+
+function loadFromCache(presetIndex) {
+  try {
+    var raw = localStorage.getItem(getCacheKey(presetIndex));
+    if (!raw) return null;
+    var entry = JSON.parse(raw);
+    if (!entry || !entry.msg || typeof entry.timestamp !== 'number') return null;
+    if (Date.now() - entry.timestamp > getCacheMaxAgeMs()) return null;
+    return entry.msg;
+  } catch(e) {
+    return null;
+  }
+}
+
+/* -------------------------------------------- */
+
 function solarElevationDeg(latDeg, lonDeg, date) {
   var JD = date.getTime() / 86400000.0 + 2440587.5;
   var T = (JD - 2451545.0) / 36525.0;
@@ -297,7 +355,7 @@ function sendPresetNames() {
   }
 }
 
-function geocodeAndFetch(name) {
+function geocodeAndFetch(name, presetIndex) {
   var url = 'https://geocoding-api.open-meteo.com/v1/search?name=' +
     encodeURIComponent(name) + '&count=1&language=en&format=json';
   var xhr = new XMLHttpRequest();
@@ -309,7 +367,7 @@ function geocodeAndFetch(name) {
         var r = data.results[0];
         var displayName = r.name + (r.country ? ', ' + r.country : '');
         console.log('Geocoded "' + name + '" → ' + displayName + ' (' + r.latitude + ',' + r.longitude + ')');
-        fetchForLatLon(r.latitude, r.longitude, displayName);
+        fetchForLatLon(r.latitude, r.longitude, displayName, presetIndex);
       } else {
         console.log('Geocoding: no results for "' + name + '"');
         sendStatus(2);
@@ -356,11 +414,21 @@ function fetchForecast(presetIndex) {
   pendingFetch = true;
   presetIndex = presetIndex || 0;
 
+  /* Send cached data immediately if available */
+  var cached = loadFromCache(presetIndex);
+  if (cached) {
+    console.log('Sending cached forecast for slot ' + presetIndex);
+    Pebble.sendAppMessage(cached,
+      function() { console.log('Cached data sent OK'); },
+      function(e) { console.log('Cached data send error: ' + JSON.stringify(e)); }
+    );
+  }
+
   if (DEBUG_COORDS) {
     if (DEBUG_FORCE_OPENMETEO) {
-      fetchOpenMeteo(DEBUG_COORDS.lat, DEBUG_COORDS.lon, DEBUG_COORDS.name);
+      fetchOpenMeteo(DEBUG_COORDS.lat, DEBUG_COORDS.lon, DEBUG_COORDS.name, presetIndex);
     } else {
-      fetchForLatLon(DEBUG_COORDS.lat, DEBUG_COORDS.lon, DEBUG_COORDS.name);
+      fetchForLatLon(DEBUG_COORDS.lat, DEBUG_COORDS.lon, DEBUG_COORDS.name, presetIndex);
     }
     return;
   }
@@ -369,7 +437,7 @@ function fetchForecast(presetIndex) {
     var names = getPresetNames();
     var name = names[presetIndex - 1];
     if (name) {
-      geocodeAndFetch(name);
+      geocodeAndFetch(name, presetIndex);
       return;
     }
     /* preset slot empty — fall through to GPS */
@@ -378,19 +446,19 @@ function fetchForecast(presetIndex) {
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       function (pos) {
-        fetchForLatLon(pos.coords.latitude, pos.coords.longitude, null);
+        fetchForLatLon(pos.coords.latitude, pos.coords.longitude, null, presetIndex);
       },
       function () {
-        fetchForLatLon(60.1699, 24.9384, 'Helsinki');
+        fetchForLatLon(60.1699, 24.9384, 'Helsinki', presetIndex);
       },
       { timeout: 10000, maximumAge: 300000 }
     );
   } else {
-    fetchForLatLon(60.1699, 24.9384, 'Helsinki');
+    fetchForLatLon(60.1699, 24.9384, 'Helsinki', presetIndex);
   }
 }
 
-function fetchForLatLon(lat, lon, fallbackName) {
+function fetchForLatLon(lat, lon, fallbackName, presetIndex) {
   var now = new Date();
   var startTime = new Date(now);
   startTime.setHours(0, 0, 0, 0);  /* 00:00 of current day */
@@ -411,15 +479,15 @@ function fetchForLatLon(lat, lon, fallbackName) {
       var temps = extractSeries(xhr.responseText, 'Temperature').filter(function(v) { return !isNaN(v); });
       if (!DEBUG_FORCE_OPENMETEO && temps.length > 0) {
         pendingFetch = false;
-        parseAndSend(xhr.responseText, startTime, lat, lon, fallbackName);
+        parseAndSend(xhr.responseText, startTime, lat, lon, fallbackName, presetIndex);
         fetchAndSendUV(lat, lon, startTime);
       } else {
         console.log('Scandinavia endpoint returned no data, trying Open-Meteo');
-        fetchOpenMeteo(lat, lon, fallbackName);
+        fetchOpenMeteo(lat, lon, fallbackName, presetIndex);
       }
     } else {
       console.log('HTTP error: ' + xhr.status + ', trying Open-Meteo');
-      fetchOpenMeteo(lat, lon, fallbackName);
+      fetchOpenMeteo(lat, lon, fallbackName, presetIndex);
     }
   };
   xhr.onerror = function () {
@@ -431,7 +499,7 @@ function fetchForLatLon(lat, lon, fallbackName) {
   xhr.send();
 }
 
-function fetchOpenMeteo(lat, lon, fallbackName) {
+function fetchOpenMeteo(lat, lon, fallbackName, presetIndex) {
   var now = new Date();
   var startTime = new Date(now);
   startTime.setHours(0, 0, 0, 0);
@@ -451,7 +519,7 @@ function fetchOpenMeteo(lat, lon, fallbackName) {
   xhr.onload = function () {
     pendingFetch = false;
     if (xhr.status === 200) {
-      parseAndSendOpenMeteo(xhr.responseText, startTime, fallbackName);
+      parseAndSendOpenMeteo(xhr.responseText, startTime, fallbackName, presetIndex);
     } else {
       console.log('Open-Meteo HTTP error: ' + xhr.status);
       sendStatus(2);
@@ -505,7 +573,7 @@ function fetchAndSendUV(lat, lon, startTime) {
   xhr.send();
 }
 
-function parseAndSendOpenMeteo(json, startTime, fallbackName) {
+function parseAndSendOpenMeteo(json, startTime, fallbackName, presetIndex) {
   var data;
   try { data = JSON.parse(json); } catch(e) {
     console.log('Open-Meteo JSON parse error: ' + e);
@@ -623,6 +691,8 @@ function parseAndSendOpenMeteo(json, startTime, fallbackName) {
   if (DEBUG_WEATHER_IND) debugInjectWeatherInd(precipByteArray, wcodeByteArray);
   if (nonZeroInd > 0 || DEBUG_WEATHER_IND)  { msg.WEATHER_INDICATOR = wcodeByteArray; }
 
+  saveToCache(presetIndex, msg);
+
   Pebble.sendAppMessage(
     msg,
     function () { console.log('Open-Meteo data sent OK'); },
@@ -647,7 +717,7 @@ function extractSeries(xml, paramName) {
   return values;
 }
 
-function parseAndSend(xml, startTime, lat, lon, fallbackName) {
+function parseAndSend(xml, startTime, lat, lon, fallbackName, presetIndex) {
   var tempRaw   = extractSeries(xml, 'Temperature');
   var precipRaw = extractSeries(xml, 'Precipitation1h');
   var wspdRaw   = extractSeries(xml, 'WindSpeedMS');
@@ -784,6 +854,8 @@ function parseAndSend(xml, startTime, lat, lon, fallbackName) {
   var nonZeroInd = weatherIndArray.filter(function(v) { return v > 0; }).length;
   if (DEBUG_WEATHER_IND) debugInjectWeatherInd(precipByteArray, weatherIndArray);
   if (nonZeroInd > 0 || DEBUG_WEATHER_IND) { msg.WEATHER_INDICATOR = weatherIndArray; }
+
+  saveToCache(presetIndex, msg);
 
   Pebble.sendAppMessage(
     msg,
