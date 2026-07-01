@@ -2,7 +2,9 @@
 
 Pebble watch app for viewing weather forecasts as a scrollable graph.
 
-![screenshot](screenshots/screenshot_01_initial_zoom.png)
+| 5-day view                                                  | 1-day view                                                  | Value panel                                               |
+|-------------------------------------------------------------|-------------------------------------------------------------|-----------------------------------------------------------|
+| ![Initial zoom](screenshots/screenshot_01_initial_zoom.png) | ![Toggled zoom](screenshots/screenshot_02_toggled_zoom.png) | ![Value panel](screenshots/screenshot_03_value_panel.png) |
 
 ### Makefile
 
